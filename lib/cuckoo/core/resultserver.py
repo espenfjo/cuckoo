@@ -45,6 +45,7 @@ class Resultserver(SocketServer.ThreadingTCPServer, object):
         self.cfg = Config()
         self.analysistasks = {}
         self.analysishandlers = {}
+        self.xor_keys = {}
 
         try:
             server_addr = self.cfg.resultserver.ip, self.cfg.resultserver.port
@@ -63,10 +64,11 @@ class Resultserver(SocketServer.ThreadingTCPServer, object):
             self.servethread.setDaemon(True)
             self.servethread.start()
 
-    def add_task(self, task, machine):
+    def add_task(self, task, machine, xor_key):
         """Register a task/machine with the Resultserver."""
         self.analysistasks[machine.ip] = (task, machine)
         self.analysishandlers[task.id] = []
+        self.xor_keys[machine.ip] = [ord(x) for x in xor_key], 0
 
     def del_task(self, task, machine):
         """Delete Resultserver state and wait for pending RequestHandlers."""
@@ -143,6 +145,24 @@ class Resulthandler(SocketServer.BaseRequestHandler):
             if not tmp:
                 raise Disconnect()
             buf += tmp
+
+        # only decrypt buffers for BsonParser at the moment
+        if isinstance(self.protocol, BsonParser):
+
+            # get xor key and index
+            xor_key, xor_key_idx = \
+                self.server.xor_keys.get(self.client_address[0])
+
+            # decrypt buf
+            buf = ''.join(chr(ord(buf[x]) ^
+                              xor_key[(xor_key_idx + x) % len(xor_key)])
+                          for x in xrange(len(buf)))
+
+            # update the xor key index
+            xor_key_idx += len(buf)
+
+            # update the xor key and xor key index state
+            self.server.xor_keys[self.client_address[0]] = xor_key, xor_key_idx
 
         if isinstance(self.protocol, (NetlogParser, BsonParser)):
             if self.rawlogfd:

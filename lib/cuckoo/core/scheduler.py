@@ -16,6 +16,7 @@ from lib.cuckoo.common.exceptions import CuckooCriticalError
 from lib.cuckoo.common.objects import File
 from lib.cuckoo.common.utils import create_folder
 from lib.cuckoo.common.config import Config
+from lib.cuckoo.common.rand import random_string
 from lib.cuckoo.core.database import Database, TASK_COMPLETED, TASK_REPORTED
 from lib.cuckoo.core.guest import GuestManager
 from lib.cuckoo.core.resultserver import Resultserver
@@ -153,6 +154,7 @@ class AnalysisManager(Thread):
         options["options"] = self.task.options
         options["enforce_timeout"] = self.task.enforce_timeout
         options["clock"] = self.task.clock
+        options["xorkey"] = random_string(32)
 
         if not self.task.timeout or self.task.timeout == 0:
             options["timeout"] = self.cfg.timeouts.default
@@ -193,7 +195,8 @@ class AnalysisManager(Thread):
 
         # At this point we can tell the Resultserver about it.
         try:
-            Resultserver().add_task(self.task, self.machine)
+            Resultserver().add_task(self.task, self.machine,
+                                    options["xorkey"])
         except Exception as e:
             machinery.release(self.machine.label)
             self.errors.put(e)

@@ -329,6 +329,7 @@ class Process:
             config.write("analyzer={0}\n".format(os.getcwd()))
             config.write("first-process={0}\n".format(Process.first_process))
             config.write("startup-time={0}\n".format(Process.startup_time))
+            config.write("xor-key={0}\n".format(cfg.xorkey))
 
             Process.first_process = False
 
